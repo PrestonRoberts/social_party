@@ -156,7 +156,7 @@ app.post('/join_party', authenticateToken, async (req, res) => {
     return res.send({ message: 'Joined party successfully.'})
 })
 
-// todo - leave party
+// leave party
 app.delete('/leave_party', authenticateToken, async (req, res) => {
     const { partyId } = req.body;
 

@@ -58,15 +58,17 @@ app.post('/register', async (req, res) => {
     const {email, username, password} = req.body;
     
     // search database to see if username exists already
-    const existingUser = await User.findOne({
-        $or: [
-            {username: {$eq: username}},
-            {email: {$eq: email}},
-        ]
-    });
-
+    // todo - ignore capital letters when comparing username and emails
+    // todo - username is not too short and not to long
+    // todo - valid email
+    let existingUser = await User.findOne({ username });
     if (existingUser) {
-        return res.status(400).send({ message: 'Username already exists' });
+        return res.status(400).send({ message: 'Username already exists.' });
+    }
+
+    existingUser = await User.findOne({email});
+    if (existingUser) {
+        return res.status(400).send({ message: 'Email already exists.' });
     }
 
     // encrypt password
@@ -76,14 +78,16 @@ app.post('/register', async (req, res) => {
     // create new user
     const user = new User({username, email, password:hashedPassword});
     await user.save();
-    res.send({ message: 'Account created successfully.' })
+    return res.send({ message: 'Account created successfully.' })
 })
 
 // delete account
 app.delete('/delete_account', authenticateToken, async (req, res) => {
     const userId = req.userId;
     await User.findByIdAndDelete(userId);
-    res.send({ message: 'Account deleted successfully.' })
+    return res.send({ message: 'Account deleted successfully.' })
+
+    // todo - delete all parties associated with the account
 })
 
 // log in to account
@@ -104,12 +108,12 @@ app.post('/login', async (req, res) => {
     // generate json web token
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {expiresIn: '7d'});
 
-    res.json({ token });
+    return res.json({ token });
 })
 
 // create party
 app.post('/create_party', authenticateToken, async (req, res) => {
-    const {partyName} = req.body;
+    const { partyName } = req.body;
     const userId = req.userId;
 
     const user = await User.findById(userId);
@@ -119,17 +123,63 @@ app.post('/create_party', authenticateToken, async (req, res) => {
     }
 
     // create the party
-    const party = new Party({host_id: userId, name: partyName});
+    const party = new Party({hostId: userId, name: partyName});
     await party.save();
-    console.log(party);
 
     return res.send({ message: 'Party Created Successfully' })
 })
 
-// todo - join party
+// join party
+app.post('/join_party', authenticateToken, async (req, res) => {
+    const { partyId } = req.body;
+
+    const party = await Party.findById(partyId);
+    if(!party) {
+        return res.status(404).send({ message: 'Party not found.' });
+    }
+
+    console.log(party.hostId);
+    console.log(req.userId);
+    if(party.hostId == req.userId) {
+        return res.status(409).send({ message: 'User is the host of this party.' });
+    }
+
+    let userToParty = await UserToParty.findOne({userId: req.userId, partyId});
+    if(userToParty) {
+        return res.status(409).send({ message: 'User is already in the party.' })
+    }
+
+    // join the party
+    userToParty = new UserToParty({userId: req.userId, partyId: partyId});
+    await userToParty.save();
+
+    return res.send({ message: 'Joined party successfully.'})
+})
 
 // todo - leave party
+app.delete('/leave_party', authenticateToken, async (req, res) => {
+    const { partyId } = req.body;
+
+    const party = await Party.findById(partyId);
+    if(!party) {
+        return res.status(404).send({ message: 'Party not found.' });
+    }
+
+    if(party.hostId == req.userId) {
+        return res.status(409).send({ message: 'User is the host of this party, they can not leave.' });
+    }
+
+    await UserToParty.findOneAndDelete({userId: req.userId, partyId});
+    return res.send({ message: 'User has left the party.' })
+})
 
 // todo - delete party
+app.delete('/delete_party', authenticateToken, async (req, res) => {
+
+})
 
 // deadline - 1/27/2023
+
+// todo - get list of parties
+
+// todo - get list of users in a party

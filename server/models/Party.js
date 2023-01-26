@@ -7,8 +7,8 @@ const partySchema = new Schema ({
         required: true,
         auto: true
     },
-    host_id: {
-        type: String,
+    hostId: {
+        type: mongoose.Schema.Types.ObjectId,
         required: true
     },
     name: {

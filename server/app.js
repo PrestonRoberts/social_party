@@ -56,17 +56,25 @@ app.post('/register', async (req, res) => {
     }
 
     const {email, username, password} = req.body;
-    
+
+    // valid username length
+    if(username.length <= 3 || username.length >= 16) {
+        return res.status(400).send({ message: 'Username must be between 3 and 16 characters.' });
+    }
+
+    // valid email format
+    const regex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+    if (!regex.test(email)) {
+        return res.status(400).send({ message: 'Email address is not valid.' });
+    }
+
     // search database to see if username exists already
-    // todo - ignore capital letters when comparing username and emails
-    // todo - username is not too short and not to long
-    // todo - valid email
-    let existingUser = await User.findOne({ username });
+    let existingUser = await User.findOne({ searchname: username.toLowerCase() });
     if (existingUser) {
         return res.status(400).send({ message: 'Username already exists.' });
     }
 
-    existingUser = await User.findOne({email});
+    existingUser = await User.findOne({searchemail: email.toLowerCase() });
     if (existingUser) {
         return res.status(400).send({ message: 'Email already exists.' });
     }
@@ -76,7 +84,7 @@ app.post('/register', async (req, res) => {
     const hashedPassword = bcrypt.hashSync(password, salt)
 
     // create new user
-    const user = new User({username, email, password:hashedPassword});
+    const user = new User({ email, searchemail: email.toLowerCase(), username, searchname: username.toLowerCase(), password:hashedPassword});
     await user.save();
     return res.send({ message: 'Account created successfully.' })
 })
@@ -221,7 +229,7 @@ app.delete('/delete_party', authenticateToken, async (req, res) => {
     if(!mongoose.Types.ObjectId.isValid(req.userId)) {
         return res.status(400).send({ message: 'Invalid id.'})
     }
-    
+
     const party = await Party.findById(partyId);
     if(!party) {
         return res.status(404).send({ message: 'Party not found.' });

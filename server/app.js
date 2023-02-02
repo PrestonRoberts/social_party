@@ -41,12 +41,35 @@ function authenticateToken(req, res, next) {
 
     jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
         if(err) {
-            return res.stats(401).send({ message: 'Invalid token' });
+            return res.stats(401).send({ message: 'Invalid token.' });
         }
 
         req.userId = decoded.id;
+
+        
+        if(!mongoose.Types.ObjectId.isValid(req.userId)) {
+            return res.status(400).send({ message: 'Invalid id.'})
+        }
+
         next();
     })
+}
+
+async function authenticateParty(req, res, next) {
+    const partyId = req.body.partyId;
+
+    if(!mongoose.Types.ObjectId.isValid(partyId)) {
+        return res.status(400).send({ message: 'Invalid id.'})
+    }
+
+    const party = await Party.findById(partyId);
+    if(!party) {
+        return res.status(404).send({ message: 'Party not found.' });
+    }
+
+    req.party = party;
+    req.partyId = partyId;
+    next();
 }
 
 // register an account
@@ -138,10 +161,6 @@ app.post('/create_party', authenticateToken, async (req, res) => {
     const { partyName } = req.body;
     const userId = req.userId;
 
-    if(!mongoose.Types.ObjectId.isValid(userId)) {
-        return res.status(400).send({ message: 'Invalid id.'})
-    }
-
     const user = await User.findById(userId);
 
     if(!user) {
@@ -156,60 +175,39 @@ app.post('/create_party', authenticateToken, async (req, res) => {
 })
 
 // join party
-app.post('/join_party', authenticateToken, async (req, res) => {
-    const { partyId } = req.body;
-
-    if(!mongoose.Types.ObjectId.isValid(partyId)) {
-        return res.status(400).send({ message: 'Invalid id.'})
-    }
-
-    if(!mongoose.Types.ObjectId.isValid(req.userId)) {
-        return res.status(400).send({ message: 'Invalid id.'})
-    }
-
-    const party = await Party.findById(partyId);
-    if(!party) {
+app.post('/join_party', authenticateToken, authenticateParty, async (req, res) => {
+    if(!req.party) {
         return res.status(404).send({ message: 'Party not found.' });
     }
 
-    if(party.hostId == req.userId) {
-        return res.status(409).send({ message: 'User is the host of this party.' });
+    if(req.party.hostId == req.userId) {
+        return res.status(403).send({ message: 'User is the host of this party.' });
     }
 
-    let userToParty = await UserToParty.findOne({userId: req.userId, partyId});
+    let userToParty = await UserToParty.findOne({userId: req.userId, partyId: req.partyId});
     if(userToParty) {
         return res.status(409).send({ message: 'User is already in the party.' })
     }
 
     // join the party
-    userToParty = new UserToParty({userId: req.userId, partyId: partyId});
+    userToParty = new UserToParty({userId: req.userId, partyId: req.partyId});
     await userToParty.save();
 
-    return res.send({ message: 'Joined party successfully.', partyId: partyId })
+    return res.send({ message: 'Joined party successfully.', partyId: req.partyId })
 })
 
 // leave party
-app.delete('/leave_party', authenticateToken, async (req, res) => {
-    const { partyId } = req.body;
-
-    if(!mongoose.Types.ObjectId.isValid(partyId)) {
-        return res.status(400).send({ message: 'Invalid id.'})
-    }
-
-    if(!mongoose.Types.ObjectId.isValid(req.userId)) {
-        return res.status(400).send({ message: 'Invalid id.'})
-    }
-
-    const party = await Party.findById(partyId);
-    if(!party) {
+app.delete('/leave_party', authenticateToken, authenticateParty, async (req, res) => {
+    const party = await Party.findById(req.partyId);
+    if(!req.party) {
         return res.status(404).send({ message: 'Party not found.' });
     }
 
-    if(party.hostId == req.userId) {
-        return res.status(409).send({ message: 'User is the host of this party, they can not leave.' });
+    if(req.party.hostId == req.userId) {
+        return res.status(403).send({ message: 'User is the host of this party, they can not leave.' });
     }
 
-    await UserToParty.findOneAndDelete({userId: req.userId, partyId});
+    await UserToParty.findOneAndDelete({userId: req.userId, partyId: req.partyId});
     return res.send({ message: 'User has left the party.' })
 })
 
@@ -219,31 +217,58 @@ async function deleteParty(partyId) {
     await UserToParty.deleteMany({partyId});
 }
 
-app.delete('/delete_party', authenticateToken, async (req, res) => {
-    const { partyId } = req.body;
-
-    if(!mongoose.Types.ObjectId.isValid(partyId)) {
-        return res.status(400).send({ message: 'Invalid id.'})
+app.delete('/delete_party', authenticateToken, authenticateParty, async (req, res) => {
+    if(req.party.hostId != req.userId) {
+        return res.status(403).send({ message: 'User is not the host of this party, they can not delete it.' });
     }
 
-    if(!mongoose.Types.ObjectId.isValid(req.userId)) {
-        return res.status(400).send({ message: 'Invalid id.'})
-    }
-
-    const party = await Party.findById(partyId);
-    if(!party) {
-        return res.status(404).send({ message: 'Party not found.' });
-    }
-
-    if(party.hostId != req.userId) {
-        return res.status(409).send({ message: 'User is not the host of this party, they can not delete it.' });
-    }
-
-    deleteParty(partyId);
+    deleteParty(req.partyId);
 
     return res.send({ message: 'Party has been deleted successfully.' })
 })
 
-// todo - get list of parties
+// remove another user from the party
+app.post('/remove_user', authenticateToken, authenticateParty, async (req, res) => {
+    const { targetUserId } = req.body;
+
+    if(req.party.hostId != req.userId) {
+        return res.status(403).send({ message: 'User is not the host of this party, they can not remove other users.' });
+    }
+
+    await UserToParty.findOneAndDelete({ userId: targetUserId, partyId: req.partyId });
+    return res.send({ message: 'User was removedkicked from the party.' });
+})
+
+// get list of parties
+app.get('/get_user_parties', authenticateToken, async (req, res) => {
+    const userToParty = await UserToParty.find({ userId: req.userId })
+
+    const partyIds = userToParty.map(data => data.partyId);
+
+    const allParties = await Party.find({ _id: {$in: partyIds} })
+
+    res.send(allParties);
+})
 
 // todo - get list of users in a party
+app.get('/get_party_userlist', authenticateToken, authenticateParty, async(req, res) => {
+
+})
+
+// todo - send chat messages in party
+app.post('/send_chat_message', authenticateToken, authenticateParty, async(req, res) => {
+
+})
+
+// todo - get chat messages
+app.get('get_chat_messages', authenticateToken, authenticateParty, async(req, res) => {
+    
+})
+
+// deadline 2/3/2023
+
+// google log in
+
+// google maps API
+
+// deadline 2/10/2023

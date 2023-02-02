@@ -3,6 +3,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const validator = require('validator');
 const mongoose = require('mongoose');
 const User = require('./models/User');
 const Party = require('./models/Party');
@@ -53,7 +54,7 @@ function authenticateToken(req, res, next) {
         }
 
         next();
-    })
+    });
 }
 
 async function authenticateParty(req, res, next) {
@@ -94,19 +95,17 @@ app.post('/register', async (req, res) => {
     }
 
     const {email, username, password} = req.body;
+    
+    if (!validator.isEmail(email)) {
+        return res.status(400).send({ message: 'Email address is not valid.' });
+    }
 
     // valid username length
     if(username.length <= 3 || username.length >= 16) {
         return res.status(400).send({ message: 'Username must be between 3 and 16 characters.' });
     }
 
-    // valid email format
-    const regex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
-    if (!regex.test(email)) {
-        return res.status(400).send({ message: 'Email address is not valid.' });
-    }
-
-    // search database to see if username exists already
+    // check if username exists already
     let existingUser = await User.findOne({ searchname: username.toLowerCase() });
     if (existingUser) {
         return res.status(400).send({ message: 'Username already exists.' });
@@ -117,6 +116,19 @@ app.post('/register', async (req, res) => {
         return res.status(400).send({ message: 'Email already exists.' });
     }
 
+    // check valid password length
+    if(password.length <= 8 || password.length >= 128) {
+        return res.status(400).send({ message: 'Password must be between 8 and 128 characters.' });
+    }
+
+    if(!password.match(hasNumber)) {
+        return res.status(400).send({ message: 'Password must contain at least 1 number.'});
+    }
+
+    if(!password.match(hasSpecialChar)) {
+        return res.status(400).send({ message: 'Password must contain at least 1 special character. (!, @, #, $, %, ^)'});
+    }
+
     // encrypt password
     const salt = bcrypt.genSaltSync(10);
     const hashedPassword = bcrypt.hashSync(password, salt)
@@ -124,7 +136,31 @@ app.post('/register', async (req, res) => {
     // create new user
     const user = new User({ email, searchemail: email.toLowerCase(), username, searchname: username.toLowerCase(), password:hashedPassword});
     await user.save();
-    return res.send({ message: 'Account created successfully.' })
+
+    // log the user in
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {expiresIn: '7d'});
+
+    return res.send({ message: 'Account created successfully.', token })
+})
+
+// log in to account
+app.post('/login', async (req, res) => {
+    const {username, password} = req.body;
+
+    const user = await User.findOne({ username });
+
+    if (!user) {
+        return res.status(401).send({ message: 'Invalid login information.' });
+    }
+
+    // check if password matches hashed password
+    if (!bcrypt.compareSync(password, user.password)) {
+        return res.status(401).send({ message: 'Invalid login information.' });
+    }
+
+    // log the user in
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {expiresIn: '7d'});
+    return res.json({message: 'User login successfully.', token });
 })
 
 // delete account
@@ -148,27 +184,6 @@ app.delete('/delete_account', authenticateToken, async (req, res) => {
     })
 
     return res.send({ message: 'Account deleted successfully.' })
-})
-
-// log in to account
-app.post('/login', async (req, res) => {
-    const {username, password} = req.body;
-
-    const user = await User.findOne({ username });
-
-    if (!user) {
-        return res.status(401).send({ message: 'Invalid login information.' });
-    }
-
-    // check if password matches hashed password
-    if (!bcrypt.compareSync(password, user.password)) {
-        return res.status(401).send({ message: 'Invalid login information.' });
-    }
-
-    // generate json web token
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {expiresIn: '7d'});
-
-    return res.json({message: 'User login successfully.', token });
 })
 
 // create party

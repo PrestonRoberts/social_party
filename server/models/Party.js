@@ -3,12 +3,12 @@ const Schema = mongoose.Schema;
 
 const partySchema = new Schema ({
     _id: {
-        type: mongoose.Schema.Types.ObjectId,
+        type: Schema.Types.ObjectId,
         required: true,
         auto: true
     },
     hostId: {
-        type: mongoose.Schema.Types.ObjectId,
+        type: Schema.Types.ObjectId,
         required: true
     },
     name: {

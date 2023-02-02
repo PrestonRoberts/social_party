@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const User = require('./models/User');
 const Party = require('./models/Party');
 const UserToParty = require('./models/UserToParty');
+const ChatMessage = require('./models/ChatMessage');
 
 // server
 const app = express();
@@ -58,6 +59,10 @@ function authenticateToken(req, res, next) {
 async function authenticateParty(req, res, next) {
     const partyId = req.body.partyId;
 
+    if(!partyId) {
+        return res.status(401).send({ message: 'No party id provided.' });
+    }
+
     if(!mongoose.Types.ObjectId.isValid(partyId)) {
         return res.status(400).send({ message: 'Invalid id.'})
     }
@@ -69,6 +74,16 @@ async function authenticateParty(req, res, next) {
 
     req.party = party;
     req.partyId = partyId;
+    next();
+}
+
+async function userInPartyCheck(req, res, next) {
+    const userToParty = await UserToParty.findOne({ userId: req.userId, partyId: req.partyId });
+
+    if(!userToParty) {
+        return res.status(403).send({ message: 'User is not apart of the party.' });
+    }
+
     next();
 }
 
@@ -197,7 +212,7 @@ app.post('/join_party', authenticateToken, authenticateParty, async (req, res) =
 })
 
 // leave party
-app.delete('/leave_party', authenticateToken, authenticateParty, async (req, res) => {
+app.delete('/leave_party', authenticateToken, authenticateParty, userInPartyCheck, async (req, res) => {
     const party = await Party.findById(req.partyId);
     if(!req.party) {
         return res.status(404).send({ message: 'Party not found.' });
@@ -228,7 +243,7 @@ app.delete('/delete_party', authenticateToken, authenticateParty, async (req, re
 })
 
 // remove another user from the party
-app.post('/remove_user', authenticateToken, authenticateParty, async (req, res) => {
+app.delete('/remove_user', authenticateToken, authenticateParty, async (req, res) => {
     const { targetUserId } = req.body;
 
     if(req.party.hostId != req.userId) {
@@ -236,7 +251,7 @@ app.post('/remove_user', authenticateToken, authenticateParty, async (req, res) 
     }
 
     await UserToParty.findOneAndDelete({ userId: targetUserId, partyId: req.partyId });
-    return res.send({ message: 'User was removedkicked from the party.' });
+    return res.send({ message: 'User was removedfrom the party.' });
 })
 
 // get list of parties
@@ -245,24 +260,61 @@ app.get('/get_user_parties', authenticateToken, async (req, res) => {
 
     const partyIds = userToParty.map(data => data.partyId);
 
-    const allParties = await Party.find({ _id: {$in: partyIds} })
+    const allParties = await Party.find({ _id: { $in: partyIds } });
 
     res.send(allParties);
 })
 
-// todo - get list of users in a party
-app.get('/get_party_userlist', authenticateToken, authenticateParty, async(req, res) => {
+// get list of users in a party
+app.get('/get_party_userlist', authenticateToken, authenticateParty, userInPartyCheck, async(req, res) => {
+    const allUserToParty = await UserToParty.find( {partyId: req.partyId });
 
+    const userIds = allUserToParty.map(data => data.userId);
+
+    const allUsers = await User.find( {_id: { $in: userIds } });
+
+    res.send(allUsers);
 })
 
-// todo - send chat messages in party
-app.post('/send_chat_message', authenticateToken, authenticateParty, async(req, res) => {
+// send chat messages in party
+app.post('/send_chat_message', authenticateToken, authenticateParty, userInPartyCheck, async(req, res) => {
+    const { messageData } = req.body;
 
+    let message = messageData.trim();
+
+    if(message === '') {
+        return res.status(400).send({ message: 'Message is invalid.' });
+    }
+
+    let chatMessage = new ChatMessage({userId: req.userId, partyId: req.partyId, message });
+    await chatMessage.save();
+
+    return res.send({ message: 'Message sent', messageId: chatMessage._id })
 })
 
-// todo - get chat messages
-app.get('get_chat_messages', authenticateToken, authenticateParty, async(req, res) => {
-    
+// delete a chat message
+app.delete('/delete_chat_message', authenticateToken, authenticateParty, userInPartyCheck, async(req, res) => {
+    const { messageId } = req.body;
+
+    const chatMessage = await ChatMessage.findById(messageId);
+
+    if(!chatMessage) {
+        return res.status(404).send({ message: 'Message not found.' });
+    }
+
+    if(chatMessage.userId != req.userId) {
+        return res.status(403).send({ message: 'The message does not belong to the user.' });
+    }
+
+    await ChatMessage.findByIdAndDelete(messageId);
+    return res.send({ message: 'Message was deleted.' });
+})
+
+// get chat messages
+app.get('/get_chat_messages', authenticateToken, authenticateParty, userInPartyCheck, async(req, res) => {
+    const allChatMessages = await ChatMessage.find( {partyId: req.partyId} );
+
+    res.send(allChatMessages);
 })
 
 // deadline 2/3/2023

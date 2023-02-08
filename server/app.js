@@ -332,10 +332,6 @@ app.get('/get_chat_messages', authenticateToken, authenticateParty, userInPartyC
     res.send(allChatMessages);
 })
 
-// deadline 2/3/2023
+// todo - google log in
 
-// google log in
-
-// google maps API
-
-// deadline 2/10/2023
+// todo - google maps API

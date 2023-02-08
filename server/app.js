@@ -90,6 +90,8 @@ async function userInPartyCheck(req, res, next) {
 
 // register an account
 app.post('/register', async (req, res) => {
+    console.log(req.body);
+    
     if (!req.body.email || !req.body.username || !req.body.password) {
         return res.status(400).send({ message: 'Email, username or password is missing.' });
     }
@@ -145,6 +147,8 @@ app.post('/register', async (req, res) => {
 
 // log in to account
 app.post('/login', async (req, res) => {
+    console.log(req.body);
+    
     const {username, password} = req.body;
 
     const user = await User.findOne({ username });

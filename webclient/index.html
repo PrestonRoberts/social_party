@@ -2,48 +2,47 @@
 <html lang="en">
     <head>
         <title>Home</title>
+        <script src="./js/account.js"></script>
     </head>
 
     <body>
         <h1>Social Party</h1>
 
         <!-- Login -->
-        <div id="login-form">
+        <div id="login">
             <h2>Login</h2>
-            <form action="/login" method="post">
+            <form name="login_form">
                 <div class="form-group">
                     <label for="username">Username: </label><br />
-                    <input type="text" class="form-control" id="username">
+                    <input type="text" class="form-control" id="login_username">
                 </div>
                 <div class="form-group">
                     <label for="password">Password: </label><br />
-                    <input type="password" class="form-control" id="password">
-                </div>
-                <div class="form-group">
-                    <button type="submit" class="btn btn-primary">Login</button>
+                    <input type="password" class="form-control" id="login_password">
                 </div>
             </form>
+            <button class="btn btn-primary" onclick="login()">Login</button>
         </div>
+        
 
         <!-- Register-->
-        <div id="register-form">
+        <div class="register">
             <h2>Create an Account</h2>
-            <form action="/register" method="post">
+            <form name="register_form">
                 <div class="form-group">
                     <label for="email">Email: </label><br />
-                    <input type="email" class="form-control" id="email">
+                    <input type="email" class="form-control" id="register_email">
                 </div>
                 <div class="form-group">
                     <label for="username">Username: </label><br />
-                    <input type="text" class="form-control" id="username">
+                    <input type="text" class="form-control" id="register_username">
                 </div>
                 <div class="form-group">
                     <label for="password">Password: </label><br />
-                    <input type="password" class="form-control" id="password">
+                    <input type="password" class="form-control" id="register_password">
                 </div>
-                <div class="form-group">
-                    <button type="submit" class="btn btn-primary">Register</button>
-                </div>
+            </form>
+            <button class="btn btn-primary" onclick="register()">Register</button>
         </div>
     </body>
 

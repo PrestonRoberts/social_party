@@ -3,8 +3,10 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const validator = require('validator');
 const mongoose = require('mongoose');
+const cors = require('cors');
+
+// Database Models
 const User = require('./models/User');
 const Party = require('./models/Party');
 const UserToParty = require('./models/UserToParty');
@@ -13,6 +15,9 @@ const ChatMessage = require('./models/ChatMessage');
 // server
 const app = express();
 const port = 3000;
+
+// enable CORS for all routes
+app.use(cors());
 
 app.listen(port, () => console.log(`listening on port ${port}`));
 app.use(bodyParser.json());
@@ -38,19 +43,19 @@ function authenticateToken(req, res, next) {
     const token = req.body.userToken;
 
     if(!token) {
-        return res.status(401).send({ message: 'No token provided.' });
+        return res.status(401).send({ message: 'no token provided.' });
     }
 
     jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
         if(err) {
-            return res.stats(401).send({ message: 'Invalid token.' });
+            return res.stats(401).send({ message: 'invalid token.' });
         }
 
         req.userId = decoded.id;
 
         
         if(!mongoose.Types.ObjectId.isValid(req.userId)) {
-            return res.status(400).send({ message: 'Invalid id.'})
+            return res.status(400).send({ message: 'invalid id.'})
         }
 
         next();
@@ -61,16 +66,16 @@ async function authenticateParty(req, res, next) {
     const partyId = req.body.partyId;
 
     if(!partyId) {
-        return res.status(401).send({ message: 'No party id provided.' });
+        return res.status(401).send({ message: 'no party id provided.' });
     }
 
     if(!mongoose.Types.ObjectId.isValid(partyId)) {
-        return res.status(400).send({ message: 'Invalid id.'})
+        return res.status(400).send({ message: 'invalid id.'})
     }
 
     const party = await Party.findById(partyId);
     if(!party) {
-        return res.status(404).send({ message: 'Party not found.' });
+        return res.status(404).send({ message: 'party not found.' });
     }
 
     req.party = party;
@@ -82,53 +87,97 @@ async function userInPartyCheck(req, res, next) {
     const userToParty = await UserToParty.findOne({ userId: req.userId, partyId: req.partyId });
 
     if(!userToParty) {
-        return res.status(403).send({ message: 'User is not apart of the party.' });
+        return res.status(403).send({ message: 'user is not apart of the party.' });
     }
 
     next();
 }
 
+function isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
+
+function isValidUsername(username) {
+    // Check length
+    if (username.length < 3 || username.length > 16) {
+      return false;
+    }
+  
+    // Check for non-alphanumeric characters
+    const usernameRegex = /^[a-zA-Z0-9]+$/;
+    if (!usernameRegex.test(username)) {
+      return false;
+    }
+  
+    return true;
+}
+
+function isStrongPassword(password) {
+    // Check length
+    if (password.length < 8) {
+      return false;
+    }
+  
+    // Check for lowercase letters
+    const lowercaseRegex = /[a-z]/;
+    if (!lowercaseRegex.test(password)) {
+      return false;
+    }
+  
+    // Check for uppercase letters
+    const uppercaseRegex = /[A-Z]/;
+    if (!uppercaseRegex.test(password)) {
+      return false;
+    }
+  
+    // Check for digits
+    const digitRegex = /[0-9]/;
+    if (!digitRegex.test(password)) {
+      return false;
+    }
+  
+    // Check for special characters
+    const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/;
+    if (!specialCharRegex.test(password)) {
+      return false;
+    }
+  
+    return true;
+}
+
 // register an account
 app.post('/register', async (req, res) => {
-    console.log(req.body);
-    
     if (!req.body.email || !req.body.username || !req.body.password) {
-        return res.status(400).send({ message: 'Email, username or password is missing.' });
+        return res.status(200).send({ success: false, message: 'Email, username or password is missing.' });
     }
 
     const {email, username, password} = req.body;
     
-    if (!validator.isEmail(email)) {
-        return res.status(400).send({ message: 'Email address is not valid.' });
+    // valid email
+    if (!isValidEmail(email)) {
+        return res.status(200).send({ success: false, message: 'email not valid' });
     }
 
-    // valid username length
-    if(username.length <= 3 || username.length >= 16) {
-        return res.status(400).send({ message: 'Username must be between 3 and 16 characters.' });
+    // valid username
+    if(!isValidUsername(username)) {
+        return res.status(200).send({ success: false, message: 'username not valid' });
+    }
+
+    // valid password
+    if(!isStrongPassword(password)) {
+        return res.status(200).send({ success: false, message: 'password not strong enough' });
     }
 
     // check if username exists already
     let existingUser = await User.findOne({ searchname: username.toLowerCase() });
     if (existingUser) {
-        return res.status(400).send({ message: 'Username already exists.' });
+        return res.status(200).send({ success: false, message: 'username already in use' });
     }
 
     existingUser = await User.findOne({searchemail: email.toLowerCase() });
     if (existingUser) {
-        return res.status(400).send({ message: 'Email already exists.' });
-    }
-
-    // check valid password length
-    if(password.length <= 8 || password.length >= 128) {
-        return res.status(400).send({ message: 'Password must be between 8 and 128 characters.' });
-    }
-
-    if(!password.match(hasNumber)) {
-        return res.status(400).send({ message: 'Password must contain at least 1 number.'});
-    }
-
-    if(!password.match(hasSpecialChar)) {
-        return res.status(400).send({ message: 'Password must contain at least 1 special character. (!, @, #, $, %, ^)'});
+        return res.status(200).send({ success: false, message: 'email already in use' });
     }
 
     // encrypt password
@@ -142,7 +191,7 @@ app.post('/register', async (req, res) => {
     // log the user in
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {expiresIn: '7d'});
 
-    return res.send({ message: 'Account created successfully.', token })
+    return res.send({ success: true, message: 'account created successfully.', token })
 })
 
 // log in to account
@@ -154,17 +203,17 @@ app.post('/login', async (req, res) => {
     const user = await User.findOne({ username });
 
     if (!user) {
-        return res.status(401).send({ message: 'Invalid login information.' });
+        return res.status(200).send({ success: false, message: 'invalid login information.' });
     }
 
     // check if password matches hashed password
     if (!bcrypt.compareSync(password, user.password)) {
-        return res.status(401).send({ message: 'Invalid login information.' });
+        return res.status(200).send({ success: false, message: 'invalid login information.' });
     }
 
     // log the user in
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {expiresIn: '7d'});
-    return res.json({message: 'User login successfully.', token });
+    return res.json({ success: true, message: 'User login successfully.', token });
 })
 
 // delete account
@@ -172,7 +221,7 @@ app.delete('/delete_account', authenticateToken, async (req, res) => {
     const userId = req.userId;
 
     if(!mongoose.Types.ObjectId.isValid(userId)) {
-        return res.status(400).send({ message: 'Invalid id.'})
+        return res.status(200).send({ success: false, message: 'Invalid id.'})
     }
 
     await User.findByIdAndDelete(userId);
@@ -187,7 +236,7 @@ app.delete('/delete_account', authenticateToken, async (req, res) => {
         deleteParty(party._id)
     })
 
-    return res.send({ message: 'Account deleted successfully.' })
+    return res.send({ success: true, message: 'Account deleted successfully.' })
 })
 
 // create party
@@ -198,51 +247,51 @@ app.post('/create_party', authenticateToken, async (req, res) => {
     const user = await User.findById(userId);
 
     if(!user) {
-        return res.status(404).send({message: 'User not found.'})
+        return res.status(200).send({ success: false, message: 'User not found.'})
     }
 
     // create the party
     const party = new Party({hostId: userId, name: partyName});
     await party.save();
 
-    return res.send({ message: 'Party Created Successfully', partyId: party._id })
+    return res.send({ success: true, message: 'Party Created Successfully', partyId: party._id })
 })
 
 // join party
 app.post('/join_party', authenticateToken, authenticateParty, async (req, res) => {
     if(!req.party) {
-        return res.status(404).send({ message: 'Party not found.' });
+        return res.status(200).send({ success: false, message: 'Party not found.' });
     }
 
     if(req.party.hostId == req.userId) {
-        return res.status(403).send({ message: 'User is the host of this party.' });
+        return res.status(200).send({ success: false, message: 'User is the host of this party.' });
     }
 
     let userToParty = await UserToParty.findOne({userId: req.userId, partyId: req.partyId});
     if(userToParty) {
-        return res.status(409).send({ message: 'User is already in the party.' })
+        return res.status(200).send({ success: false, message: 'User is already in the party.' })
     }
 
     // join the party
     userToParty = new UserToParty({userId: req.userId, partyId: req.partyId});
     await userToParty.save();
 
-    return res.send({ message: 'Joined party successfully.', partyId: req.partyId })
+    return res.send({ success: true, message: 'Joined party successfully.', partyId: req.partyId })
 })
 
 // leave party
 app.delete('/leave_party', authenticateToken, authenticateParty, userInPartyCheck, async (req, res) => {
     const party = await Party.findById(req.partyId);
     if(!req.party) {
-        return res.status(404).send({ message: 'Party not found.' });
+        return res.status(200).send({ success: false, message: 'Party not found.' });
     }
 
     if(req.party.hostId == req.userId) {
-        return res.status(403).send({ message: 'User is the host of this party, they can not leave.' });
+        return res.status(200).send({ success: false, message: 'User is the host of this party, they can not leave.' });
     }
 
     await UserToParty.findOneAndDelete({userId: req.userId, partyId: req.partyId});
-    return res.send({ message: 'User has left the party.' })
+    return res.send({ success: true, message: 'User has left the party.' })
 })
 
 // delete party
@@ -253,12 +302,12 @@ async function deleteParty(partyId) {
 
 app.delete('/delete_party', authenticateToken, authenticateParty, async (req, res) => {
     if(req.party.hostId != req.userId) {
-        return res.status(403).send({ message: 'User is not the host of this party, they can not delete it.' });
+        return res.status(200).send({ success: false, message: 'User is not the host of this party, they can not delete it.' });
     }
 
     deleteParty(req.partyId);
 
-    return res.send({ message: 'Party has been deleted successfully.' })
+    return res.send({ success: true, message: 'Party has been deleted successfully.' })
 })
 
 // remove another user from the party
@@ -266,11 +315,11 @@ app.delete('/remove_user', authenticateToken, authenticateParty, async (req, res
     const { targetUserId } = req.body;
 
     if(req.party.hostId != req.userId) {
-        return res.status(403).send({ message: 'User is not the host of this party, they can not remove other users.' });
+        return res.status(200).send({ success: false, message: 'User is not the host of this party, they can not remove other users.' });
     }
 
     await UserToParty.findOneAndDelete({ userId: targetUserId, partyId: req.partyId });
-    return res.send({ message: 'User was removedfrom the party.' });
+    return res.send({ success: true, message: 'User was removedfrom the party.' });
 })
 
 // get list of parties
@@ -281,7 +330,7 @@ app.get('/get_user_parties', authenticateToken, async (req, res) => {
 
     const allParties = await Party.find({ _id: { $in: partyIds } });
 
-    res.send(allParties);
+    res.send({success: true, data: allParties});
 })
 
 // get list of users in a party
@@ -292,7 +341,7 @@ app.get('/get_party_userlist', authenticateToken, authenticateParty, userInParty
 
     const allUsers = await User.find( {_id: { $in: userIds } });
 
-    res.send(allUsers);
+    res.send({success: true, data: allUsers});
 })
 
 // send chat messages in party
@@ -302,13 +351,13 @@ app.post('/send_chat_message', authenticateToken, authenticateParty, userInParty
     let message = messageData.trim();
 
     if(message === '') {
-        return res.status(400).send({ message: 'Message is invalid.' });
+        return res.status(200).send({ success: false, message: 'Message is invalid.' });
     }
 
     let chatMessage = new ChatMessage({userId: req.userId, partyId: req.partyId, message });
     await chatMessage.save();
 
-    return res.send({ message: 'Message sent', messageId: chatMessage._id })
+    return res.send({success: true, message: 'Message sent', messageId: chatMessage._id })
 })
 
 // delete a chat message
@@ -318,22 +367,22 @@ app.delete('/delete_chat_message', authenticateToken, authenticateParty, userInP
     const chatMessage = await ChatMessage.findById(messageId);
 
     if(!chatMessage) {
-        return res.status(404).send({ message: 'Message not found.' });
+        return res.status(200).send({ success: false, message: 'Message not found.' });
     }
 
     if(chatMessage.userId != req.userId) {
-        return res.status(403).send({ message: 'The message does not belong to the user.' });
+        return res.status(200).send({ success: false, message: 'The message does not belong to the user.' });
     }
 
     await ChatMessage.findByIdAndDelete(messageId);
-    return res.send({ message: 'Message was deleted.' });
+    return res.send({ success: true, message: 'Message was deleted.' });
 })
 
 // get chat messages
 app.get('/get_chat_messages', authenticateToken, authenticateParty, userInPartyCheck, async(req, res) => {
     const allChatMessages = await ChatMessage.find( {partyId: req.partyId} );
 
-    res.send(allChatMessages);
+    res.send({ success: true, data: allChatMessages});
 })
 
 // todo - google log in

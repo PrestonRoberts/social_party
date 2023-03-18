@@ -63,34 +63,34 @@ function isStrongPassword(password) {
 
 function register() {
     // reset error message
-    document.getElementById("account-msg").textContent = ""
+    document.getElementById("register-err").textContent = " "
 
     // get form data
-    const email = document.getElementById("register_email").value;
-    const username = document.getElementById("register_username").value;
-    const password = document.getElementById("register_password").value;
+    const email = document.getElementById("register_email").value.trim();
+    const password = document.getElementById("register_password").value.trim();
+    const confirm_password = document.getElementById("register_confirm_password").value.trim();
 
     // check if there are entries for each input
-    if(!checkFormData([email, username, password])) {
-        document.getElementById("account-msg").textContent = "one or more fields is missing for register form."
+    if(!checkFormData([email, password, confirm_password])) {
+        document.getElementById("register-err").textContent = "one or more fields is missing."
         return;
     }
 
     // check if email is valid
     if (!isValidEmail(email)) {
-        document.getElementById("account-msg").textContent = "register email is not valid"
+        document.getElementById("register-err").textContent = "email is not valid"
         return;
     }
 
-    // check if valid username
-    if (!isValidUsername(username)) {
-        document.getElementById("account-msg").textContent = "register username is not valid, must be between 3 and 16 characters and have no special characters."
+    // check if passwords match
+    if(password != confirm_password) {
+        document.getElementById("register-err").textContent = "passwords do not match"
         return;
     }
 
     // check if password is strong enough
     if (!isStrongPassword(password)) {
-        document.getElementById("account-msg").textContent = `register password is not strong enough, must be 8 or more characters, 
+        document.getElementById("register-err").textContent = `password is not strong enough, must be 8 or more characters, 
                                                             have at least 1 lowercase character, have at least 1 uppercase character, 
                                                             have at least 1 number, and have at least one special character.`
         return;
@@ -105,15 +105,13 @@ function register() {
         },
         body: JSON.stringify({
             email: email,
-            username: username,
             password: password
         })
     }).then(response => {
         return response.json();
     }).then(data => {
-        console.log(data);
-
-        document.getElementById("account-msg").textContent = data.message
+        // display message on screen
+        document.getElementById("register-err").textContent = data.message
 
         // could not register
         if (!data.success) {
@@ -126,18 +124,18 @@ function register() {
 }
 
 function login() {
-    const username = document.getElementById("login_username").value;
+    // reset error message
+    document.getElementById("login-err").textContent = " "
+
+    const email = document.getElementById("login_email").value;
     const password = document.getElementById("login_password").value;
 
-    console.log(username);
-    console.log(password);
-
-    if(!checkFormData([username, password])) {
-        document.getElementById("account-msg").textContent = "one or more fields is missing for register form."
+    if(!checkFormData([email, password])) {
+        document.getElementById("login-err").textContent = "one or more fields is missing."
         return;
     }
 
-    // todo send request to server to login
+    // send request to server to login
     fetch("http://localhost:3000/login", {
         method: 'POST',
         headers: {
@@ -146,15 +144,14 @@ function login() {
             'Access-Control-Allow-Origin': '*'
         },
         body: JSON.stringify({
-            username: username,
+            email: email,
             password: password
         })
     }).then(response => {
         return response.json();
     }).then(data => {
-        console.log(data);
-
-        document.getElementById("account-msg").textContent = data.message
+        // display message on screen
+        document.getElementById("login-err").textContent = data.message
 
         // could not login
         if (!data.success) {

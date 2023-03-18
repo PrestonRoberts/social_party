@@ -10,7 +10,6 @@ const cors = require('cors');
 const User = require('./models/User');
 const Party = require('./models/Party');
 const UserToParty = require('./models/UserToParty');
-const ChatMessage = require('./models/ChatMessage');
 
 // server
 const app = express();
@@ -48,7 +47,30 @@ function authenticateToken(req, res, next) {
 
     jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
         if(err) {
-            return res.stats(401).send({ message: 'invalid token.' });
+            return res.status(401).send({ message: 'invalid token.' });
+        }
+
+        req.userId = decoded.id;
+
+        
+        if(!mongoose.Types.ObjectId.isValid(req.userId)) {
+            return res.status(400).send({ message: 'invalid id.'})
+        }
+
+        next();
+    });
+}
+
+function authenticateTokenGet(req, res, next) {
+    const token = req.headers.authorization.split(' ')[1];
+
+    if(!token) {
+        return res.status(401).send({ message: 'no token provided.' });
+    }
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+        if(err) {
+            return res.status(401).send({ message: 'invalid token.' });
         }
 
         req.userId = decoded.id;
@@ -146,22 +168,27 @@ function isStrongPassword(password) {
     return true;
 }
 
+const wordList1 = ['Kind', 'Gentle', 'Brave', 'Calm', 'Warm', 'Loyal', 'Bold', 'Smart', 'Cheer', 'Alert', 'Happy', 'Nimble', 'Wise', 'Agile', 'Polite'];
+const wordList2 = ['Wolf', 'Horse', 'Llama', 'Deer', 'Goat', 'Eagle', 'Swan', 'Bear', 'Lion', 'Tiger', 'Whale', 'Shark', 'Dolphin', 'Goose', 'Giraffe', 'Zebra', 'Camel', 'Frog', 'Snake', 'Turtle'];
+
+function generateName () {
+    const randomIndex1 = Math.floor(Math.random() * wordList1.length);
+    const randomIndex2 = Math.floor(Math.random() * wordList2.length);
+    const name = wordList1[randomIndex1] + wordList2[randomIndex2];
+    return name;
+}
+
 // register an account
 app.post('/register', async (req, res) => {
-    if (!req.body.email || !req.body.username || !req.body.password) {
-        return res.status(200).send({ success: false, message: 'Email, username or password is missing.' });
+    if (!req.body.email || !req.body.password) {
+        return res.status(200).send({ success: false, message: 'Email, or password is missing.' });
     }
 
-    const {email, username, password} = req.body;
+    const {email, password} = req.body;
     
     // valid email
     if (!isValidEmail(email)) {
         return res.status(200).send({ success: false, message: 'email not valid' });
-    }
-
-    // valid username
-    if(!isValidUsername(username)) {
-        return res.status(200).send({ success: false, message: 'username not valid' });
     }
 
     // valid password
@@ -169,13 +196,8 @@ app.post('/register', async (req, res) => {
         return res.status(200).send({ success: false, message: 'password not strong enough' });
     }
 
-    // check if username exists already
-    let existingUser = await User.findOne({ searchname: username.toLowerCase() });
-    if (existingUser) {
-        return res.status(200).send({ success: false, message: 'username already in use' });
-    }
-
-    existingUser = await User.findOne({searchemail: email.toLowerCase() });
+    // check if email already exists
+    const existingUser = await User.findOne({searchemail: email.toLowerCase() });
     if (existingUser) {
         return res.status(200).send({ success: false, message: 'email already in use' });
     }
@@ -185,7 +207,8 @@ app.post('/register', async (req, res) => {
     const hashedPassword = bcrypt.hashSync(password, salt)
 
     // create new user
-    const user = new User({ email, searchemail: email.toLowerCase(), username, searchname: username.toLowerCase(), password:hashedPassword});
+    const username = generateName();
+    const user = new User({ email, searchemail: email.toLowerCase(), username: username, password:hashedPassword});
     await user.save();
 
     // log the user in
@@ -196,11 +219,9 @@ app.post('/register', async (req, res) => {
 
 // log in to account
 app.post('/login', async (req, res) => {
-    console.log(req.body);
-    
-    const {username, password} = req.body;
+    const {email, password} = req.body;
 
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ email });
 
     if (!user) {
         return res.status(200).send({ success: false, message: 'invalid login information.' });
@@ -213,7 +234,7 @@ app.post('/login', async (req, res) => {
 
     // log the user in
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {expiresIn: '7d'});
-    return res.json({ success: true, message: 'User login successfully.', token });
+    return res.status(200).send({ success: true, message: 'user login successfully.', token });
 })
 
 // delete account
@@ -221,7 +242,7 @@ app.delete('/delete_account', authenticateToken, async (req, res) => {
     const userId = req.userId;
 
     if(!mongoose.Types.ObjectId.isValid(userId)) {
-        return res.status(200).send({ success: false, message: 'Invalid id.'})
+        return res.status(200).send({ success: false, message: 'invalid id.'})
     }
 
     await User.findByIdAndDelete(userId);
@@ -236,7 +257,7 @@ app.delete('/delete_account', authenticateToken, async (req, res) => {
         deleteParty(party._id)
     })
 
-    return res.send({ success: true, message: 'Account deleted successfully.' })
+    return res.send({ success: true, message: 'account deleted successfully.' })
 })
 
 // create party
@@ -247,51 +268,51 @@ app.post('/create_party', authenticateToken, async (req, res) => {
     const user = await User.findById(userId);
 
     if(!user) {
-        return res.status(200).send({ success: false, message: 'User not found.'})
+        return res.status(200).send({ success: false, message: 'user not found.'})
     }
 
     // create the party
     const party = new Party({hostId: userId, name: partyName});
     await party.save();
 
-    return res.send({ success: true, message: 'Party Created Successfully', partyId: party._id })
+    return res.send({ success: true, message: 'party Created Successfully', partyId: party._id })
 })
 
 // join party
 app.post('/join_party', authenticateToken, authenticateParty, async (req, res) => {
     if(!req.party) {
-        return res.status(200).send({ success: false, message: 'Party not found.' });
+        return res.status(200).send({ success: false, message: 'party not found.' });
     }
 
     if(req.party.hostId == req.userId) {
-        return res.status(200).send({ success: false, message: 'User is the host of this party.' });
+        return res.status(200).send({ success: false, message: 'user is the host of this party.' });
     }
 
     let userToParty = await UserToParty.findOne({userId: req.userId, partyId: req.partyId});
     if(userToParty) {
-        return res.status(200).send({ success: false, message: 'User is already in the party.' })
+        return res.status(200).send({ success: false, message: 'user is already in the party.' })
     }
 
     // join the party
     userToParty = new UserToParty({userId: req.userId, partyId: req.partyId});
     await userToParty.save();
 
-    return res.send({ success: true, message: 'Joined party successfully.', partyId: req.partyId })
+    return res.send({ success: true, message: 'joined party successfully.', partyId: req.partyId })
 })
 
 // leave party
 app.delete('/leave_party', authenticateToken, authenticateParty, userInPartyCheck, async (req, res) => {
     const party = await Party.findById(req.partyId);
     if(!req.party) {
-        return res.status(200).send({ success: false, message: 'Party not found.' });
+        return res.status(200).send({ success: false, message: 'party not found.' });
     }
 
     if(req.party.hostId == req.userId) {
-        return res.status(200).send({ success: false, message: 'User is the host of this party, they can not leave.' });
+        return res.status(200).send({ success: false, message: 'user is the host of this party, they can not leave.' });
     }
 
     await UserToParty.findOneAndDelete({userId: req.userId, partyId: req.partyId});
-    return res.send({ success: true, message: 'User has left the party.' })
+    return res.send({ success: true, message: 'user has left the party.' })
 })
 
 // delete party
@@ -302,12 +323,12 @@ async function deleteParty(partyId) {
 
 app.delete('/delete_party', authenticateToken, authenticateParty, async (req, res) => {
     if(req.party.hostId != req.userId) {
-        return res.status(200).send({ success: false, message: 'User is not the host of this party, they can not delete it.' });
+        return res.status(200).send({ success: false, message: 'user is not the host of this party, they can not delete it.' });
     }
 
     deleteParty(req.partyId);
 
-    return res.send({ success: true, message: 'Party has been deleted successfully.' })
+    return res.send({ success: true, message: 'party has been deleted successfully.' })
 })
 
 // remove another user from the party
@@ -315,15 +336,15 @@ app.delete('/remove_user', authenticateToken, authenticateParty, async (req, res
     const { targetUserId } = req.body;
 
     if(req.party.hostId != req.userId) {
-        return res.status(200).send({ success: false, message: 'User is not the host of this party, they can not remove other users.' });
+        return res.status(200).send({ success: false, message: 'user is not the host of this party, they can not remove other users.' });
     }
 
     await UserToParty.findOneAndDelete({ userId: targetUserId, partyId: req.partyId });
-    return res.send({ success: true, message: 'User was removedfrom the party.' });
+    return res.send({ success: true, message: 'user was removedfrom the party.' });
 })
 
 // get list of parties
-app.get('/get_user_parties', authenticateToken, async (req, res) => {
+app.get('/get_user_parties', authenticateTokenGet, async (req, res) => {
     const userToParty = await UserToParty.find({ userId: req.userId })
 
     const partyIds = userToParty.map(data => data.partyId);
@@ -334,7 +355,7 @@ app.get('/get_user_parties', authenticateToken, async (req, res) => {
 })
 
 // get list of users in a party
-app.get('/get_party_userlist', authenticateToken, authenticateParty, userInPartyCheck, async(req, res) => {
+app.get('/get_party_userlist', authenticateTokenGet, authenticateParty, userInPartyCheck, async(req, res) => {
     const allUserToParty = await UserToParty.find( {partyId: req.partyId });
 
     const userIds = allUserToParty.map(data => data.userId);
@@ -344,47 +365,44 @@ app.get('/get_party_userlist', authenticateToken, authenticateParty, userInParty
     res.send({success: true, data: allUsers});
 })
 
-// send chat messages in party
-app.post('/send_chat_message', authenticateToken, authenticateParty, userInPartyCheck, async(req, res) => {
-    const { messageData } = req.body;
+// change username
+app.post('/change_username', authenticateToken, async (req, res) => {
+    const { newUsername } = req.body;
+    const userId = req.userId;
 
-    let message = messageData.trim();
-
-    if(message === '') {
-        return res.status(200).send({ success: false, message: 'Message is invalid.' });
+    if (!newUsername) {
+        return res.status(200).send({ success: false, message: 'new username is missing.' });
     }
 
-    let chatMessage = new ChatMessage({userId: req.userId, partyId: req.partyId, message });
-    await chatMessage.save();
-
-    return res.send({success: true, message: 'Message sent', messageId: chatMessage._id })
-})
-
-// delete a chat message
-app.delete('/delete_chat_message', authenticateToken, authenticateParty, userInPartyCheck, async(req, res) => {
-    const { messageId } = req.body;
-
-    const chatMessage = await ChatMessage.findById(messageId);
-
-    if(!chatMessage) {
-        return res.status(200).send({ success: false, message: 'Message not found.' });
+    if (!isValidUsername(newUsername)) {
+        return res.status(200).send({ success: false, message: 'username not valid.' });
     }
 
-    if(chatMessage.userId != req.userId) {
-        return res.status(200).send({ success: false, message: 'The message does not belong to the user.' });
+    // update the user's username
+    await User.findByIdAndUpdate(userId, { username: newUsername });
+
+    return res.status(200).send({ success: true, message: 'username updated successfully.' });
+});
+
+// get user profile
+app.get('/user_profile', authenticateTokenGet, async (req, res) => {
+    const userId = req.userId;
+
+    try {
+        // find the user by their ID
+        const user = await User.findById(userId);
+
+        if (!user) { 
+            return res.status(404).send({ success: false, message: 'user not found.' });
+        }
+
+        // extract the user's name
+        const { username } = user;
+
+        // send the user's name in the response
+        return res.status(200).send({ success: true, username: username });
+
+    } catch (error) {
+        return res.status(500).send({ success: false, message: 'an error occurred while fetching user profile.' });
     }
-
-    await ChatMessage.findByIdAndDelete(messageId);
-    return res.send({ success: true, message: 'Message was deleted.' });
-})
-
-// get chat messages
-app.get('/get_chat_messages', authenticateToken, authenticateParty, userInPartyCheck, async(req, res) => {
-    const allChatMessages = await ChatMessage.find( {partyId: req.partyId} );
-
-    res.send({ success: true, data: allChatMessages});
-})
-
-// todo - google log in
-
-// todo - google maps API
+});

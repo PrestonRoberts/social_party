@@ -1,0 +1,96 @@
+/* Reset */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+/* Body */
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background-color: #f4f4f4;
+}
+
+/* Header */
+header {
+    background-color: #007bff;
+    color: #fff;
+    padding: 10px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+}
+
+h1 {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+/* Container */
+.container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+/* Login/Register Forms */
+#login, #register {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    height:300px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 50%;
+    max-width: 400px;
+}
+
+#login {
+    margin-right: 10px;
+}
+
+.register {
+    display: none;
+}
+
+.login_form, .register_form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+label {
+    font-weight: bold;
+}
+
+input[type=text], input[type=password], input[type=email] {
+    border: none;
+    border-bottom: 1px solid #ddd;
+    padding: 5px;
+    font-size: 16px;
+}
+
+button {
+    border: none;
+    border-radius: 5px;
+    padding: 10px;
+    font-size: 16px;
+    color: #fff;
+    background-color: #007bff;
+    cursor: pointer;
+    width: 100%;
+}
+
+button:hover {
+    background-color: #0069d9;
+}
+
+#login-err, #register-err {
+    color: red;
+}

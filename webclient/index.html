@@ -1,52 +1,60 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <title>Home</title>
-        <script src="./js/account.js"></script>
-    </head>
+<head>
+    <meta charset="UTF-8">
+    <title>Home</title>
+    <link rel="stylesheet" href="css/index.css">
+    <script src="js/account.js"></script>
+</head>
 
-    <body>
+<body>
+    <header>
         <h1>Social Party</h1>
+    </header>
 
-        <!-- Login -->
-        <div id="login">
-            <h2>Login</h2>
-            <form name="login_form">
-                <div class="form-group">
-                    <label for="username">Username: </label><br />
-                    <input type="text" class="form-control" id="login_username">
+    <main>
+        <div class="container">
+            <section id="login">
+                <h2>Login</h2>
+                <div class="login_form">
+                    <div class="form-group">
+                        <label for="email">Email:</label>
+                        <input type="text" class="form-control" id="login_email">
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password:</label>
+                        <input type="password" class="form-control" id="login_password">
+                    </div>
+                    <button class="btn btn-primary" onclick="login()">Login</button>
                 </div>
-                <div class="form-group">
-                    <label for="password">Password: </label><br />
-                    <input type="password" class="form-control" id="login_password">
+                <a>Forgot Password?</a>
+
+                <!-- Error Message -->
+                <div id="login-err"> </div>
+            </section>
+
+            <section id="register">
+                <h2>Create an Account</h2>
+                <div class="register_form">
+                    <div class="form-group">
+                        <label for="email">Email:</label>
+                        <input type="email" class="form-control" id="register_email">
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password:</label>
+                        <input type="password" class="form-control" id="register_password">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirm-password">Confirm Password:</label>
+                        <input type="password" class="form-control" id="register_confirm_password">
+                    </div>
+                    <button class="btn btn-primary" onclick="register()">Register</button>
                 </div>
-            </form>
-            <button class="btn btn-primary" onclick="login()">Login</button>
+
+                <!-- Error Message -->
+                <div id="register-err"> </div>
+            </section>
         </div>
-        
-
-        <!-- Register-->
-        <div class="register">
-            <h2>Create an Account</h2>
-            <form name="register_form">
-                <div class="form-group">
-                    <label for="email">Email: </label><br />
-                    <input type="email" class="form-control" id="register_email">
-                </div>
-                <div class="form-group">
-                    <label for="username">Username: </label><br />
-                    <input type="text" class="form-control" id="register_username">
-                </div>
-                <div class="form-group">
-                    <label for="password">Password: </label><br />
-                    <input type="password" class="form-control" id="register_password">
-                </div>
-            </form>
-            <button class="btn btn-primary" onclick="register()">Register</button>
-        </div>
-
-        <!-- Error Message -->
-        <div id="account-msg"></div>
-    </body>
-
+    </main>
+</body>
 </html>

@@ -20,12 +20,7 @@ const userSchema = new Schema ({
     username: {
         type: String,
         required: true,
-        unique: true
-    },
-    searchname: {
-        type: String,
-        required: true,
-
+        unique: false
     },
     password: {
         type: String,
